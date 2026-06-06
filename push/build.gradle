@@ -133,14 +133,12 @@ dependencies {
 
 }
 
-bbuildscript {
+buildscript {
     repositories {
-        google()
-        maven { url 'https://maven.aliyun.com/repository/jcenter' }
-        mavenCentral()
+        flatDir { dirs 'libs' }
     }
     dependencies {
-        classpath 'com.bryansharp:hibeaver:1.2.7'
+        classpath name: 'hibeaver-1.2.7'
     }
 }
 
