@@ -28,6 +28,7 @@ android {
         }
 
         buildConfigField "String", "GIT_TAG", "\"" + rootProject.ext.gitTag + "\""
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -130,6 +131,8 @@ dependencies {
     })
     // Work
     implementation "android.arch.work:work-runtime:$work_version"
+    
+    implementation 'com.android.support:multidex:1.0.3'
 
 }
 
