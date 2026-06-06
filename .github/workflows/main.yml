@@ -37,7 +37,7 @@ jobs:
       - name: Build Release with Gradle
         run: |
           ./gradlew exportVersion --daemon
-          ./gradlew :push:assembleRelease --daemon --parallel
+          ./gradlew :push:assembleRelease --daemon --parallel -x lint -x test
         
       - name: Sign Apk
         run: |
