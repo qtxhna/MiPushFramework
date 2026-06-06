@@ -1,26 +1,19 @@
-on: [push, pull_request ,workflow_dispatch]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest ]
+    name: Build Android APK
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Check out
+      - name: Check out code
         uses: actions/checkout@v4
-
-      #- name: Gradle wrapper validation
-      #  uses: gradle/actions/wrapper-validation@v4
 
       - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
           java-version: '8'
-          distribution: 'temurin' # 升级到 v4 必须指定 distribution 选项，这里使用推荐的开源 Temurin JDK
+          distribution: 'temurin'
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -28,30 +21,52 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
-          
+
+      - name: Fix Android SDK XML Bug
+        run: |
+          # 核心修复：用 sed 批量删掉 GitHub 环境中新版 SDK 的 <extension-level> 标签
+          # 彻底根治老版本 AGP 编译器因为不认识该标签而抛出 SAXParseException 崩溃的问题
+          find $ANDROID_SDK_ROOT -name "package.xml" -type f -exec sed -i '/<extension-level>/d' {} +
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
-        
+
       - name: Build Release with Gradle
         run: |
           ./gradlew exportVersion --daemon
+          # 附加 -x 参数跳过代码检查和白嫖测试，以最快、最稳的速度直接出包
           ./gradlew :push:assembleRelease --daemon --parallel -x lint -x test
-        
-      - name: Sign Apk
+
+      - name: Sign Apk (Random Key)
         run: |
           PASSWD=$(echo $RANDOM | md5sum | head -c 15)
           ALIAS="random"
-          keytool -genkey -noprompt -v -keystore android.keystore -alias ${ALIAS} -keyalg RSA -keysize 2048 -validity 10000 -keypass ${PASSWD} -storepass ${PASSWD} -dname "CN=xx, OU=xx, O=xx, L=xx, S=xx, C=xx"
-          apksigner=${ANDROID_SDK_ROOT}/build-tools/30.0.3/apksigner
-          $apksigner sign --ks ./android.keystore \
-          --ks-pass pass:${PASSWD} \
-          --ks-key-alias ${ALIAS} \
-          --key-pass pass:${PASSWD} \
-          --in "./push/build/outputs/apk/release/push-release.apk" \
-          --out "./push/build/outputs/apk/release/push-release-signed.apk"
-        
+          
+          # 1. 现场生成随机密钥库
+          keytool -genkey -noprompt -v \
+            -keystore android.keystore \
+            -alias ${ALIAS} \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -keypass ${PASSWD} \
+            -storepass ${PASSWD} \
+            -dname "CN=xx, OU=xx, O=xx, L=xx, S=xx, C=xx"
+          
+          # 2. 动态自动寻找系统里最新的 apksigner 工具，比写死 30.0.3 更安全
+          APKSIGNER_PATH=$(find ${ANDROID_SDK_ROOT}/build-tools/ -name apksigner | sort -V | tail -n 1)
+          echo "Using apksigner found at: $APKSIGNER_PATH"
+          
+          # 3. 执行签名
+          $APKSIGNER_PATH sign --ks ./android.keystore \
+            --ks-pass pass:${PASSWD} \
+            --ks-key-alias ${ALIAS} \
+            --key-pass pass:${PASSWD} \
+            --in "./push/build/outputs/apk/release/push-release.apk" \
+            --out "./push/build/outputs/apk/release/push-release-signed.apk"
+
       - name: List out dir
         run: ls -l ./push/build/outputs/apk/release
 
@@ -59,5 +74,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
-          name: SNAPSHOT
+          name: SNAPSHOT-APK
           path: ./push/build/outputs/apk/release/
