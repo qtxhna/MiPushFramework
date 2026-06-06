@@ -24,11 +24,11 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      - name: Fix Android SDK XML Bug
-        run: |
+      #- name: Fix Android SDK XML Bug
+      #  run: |
           # 核心修复：用 sed 批量删掉 GitHub 环境中新版 SDK 的 <extension-level> 标签
           # 彻底根治老版本 AGP 编译器因为不认识该标签而抛出 SAXParseException 崩溃的问题
-          find $ANDROID_SDK_ROOT -name "package.xml" -type f -exec sed -i '/<extension-level>/d' {} +
+         # find $ANDROID_SDK_ROOT -name "package.xml" -type f -exec sed -i '/<extension-level>/d' {} +
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
